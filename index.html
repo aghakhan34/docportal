@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Portal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="styles.css">
+<!-- Microsoft Authentication Library (only used in 'sharepoint' mode) -->
+<script src="https://alcdn.msauth.net/browser/3.7.1/js/msal-browser.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <a href="#" class="topnav-logo">
+    <i class="ti ti-layout-grid" aria-hidden="true"></i>
+    DocPortal
+  </a>
+  <div class="topnav-divider"></div>
+  <span class="topnav-site" id="topnav-site">Corporate Document Management</span>
+  <div class="topnav-right">
+    <span class="conn-status demo" id="conn"><span class="dot"></span> Loading…</span>
+    <button class="topnav-btn" title="Search"><i class="ti ti-search" aria-hidden="true"></i></button>
+    <button class="topnav-btn" title="Notifications"><i class="ti ti-bell" aria-hidden="true"></i></button>
+    <button class="topnav-btn" title="Settings"><i class="ti ti-settings" aria-hidden="true"></i></button>
+    <div class="topnav-divider"></div>
+    <div class="topnav-avatar" id="avatar" title="Profile">JD</div>
+  </div>
+</nav>
+
+<!-- BREADCRUMB -->
+<div class="subnav">
+  <div class="breadcrumb">
+    <a href="#">Home</a>
+    <span class="sep">›</span>
+    <a href="#">Documents</a>
+    <span class="sep">›</span>
+    <span class="current" id="bc-path">All Documents</span>
+  </div>
+  <div class="subnav-actions">
+    <button onclick="toggleView('list')"><i class="ti ti-list" aria-hidden="true"></i> List</button>
+    <button onclick="toggleView('grid')"><i class="ti ti-layout-grid" aria-hidden="true"></i> Grid</button>
+    <button onclick="openUpload()"><i class="ti ti-upload" aria-hidden="true"></i> Upload</button>
+  </div>
+</div>
+
+<!-- LOADING BAR -->
+<div class="loading-bar" id="loading-bar"></div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Navigation</div>
+      <div class="sidebar-item active" data-type="all" onclick="filterType('all')"><i class="ti ti-files" aria-hidden="true"></i> All Documents <span class="sidebar-count" id="cnt-all">0</span></div>
+      <div class="sidebar-item" data-type="recent" onclick="filterType('recent')"><i class="ti ti-clock" aria-hidden="true"></i> Recent</div>
+      <div class="sidebar-item" data-type="starred" onclick="filterType('starred')"><i class="ti ti-star" aria-hidden="true"></i> Starred</div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Divisions</div>
+      <div id="sb-divisions"><!-- populated from config.js --></div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">File Types</div>
+      <div class="sidebar-item" onclick="filterExt('pdf')"><i class="ti ti-file-type-pdf" style="color:#a4262c" aria-hidden="true"></i> PDF Documents</div>
+      <div class="sidebar-item" onclick="filterExt('word')"><i class="ti ti-file-type-doc" style="color:#0078d4" aria-hidden="true"></i> Word Documents</div>
+      <div class="sidebar-item" onclick="filterExt('excel')"><i class="ti ti-file-spreadsheet" style="color:#107c10" aria-hidden="true"></i> Spreadsheets</div>
+      <div class="sidebar-item" onclick="filterExt('image')"><i class="ti ti-photo" style="color:#5c2e91" aria-hidden="true"></i> Images</div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- CONTEXT SELECTORS -->
+    <div class="context-bar">
+      <div class="ctx-group">
+        <span class="ctx-label">Division</span>
+        <select class="ctx-select" id="sel-division" onchange="onDivisionChange()">
+          <option value="">— Select Division —</option>
+        </select>
+      </div>
+      <div class="ctx-group">
+        <span class="ctx-label">Department</span>
+        <select class="ctx-select" id="sel-dept" onchange="onDeptChange()" disabled>
+          <option value="">— Select Department —</option>
+        </select>
+      </div>
+      <div class="ctx-group" style="justify-content:flex-end; padding-top:16px;">
+        <div class="ctx-info" id="ctx-badges"></div>
+      </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <button class="toolbar-btn primary" onclick="openUpload()"><i class="ti ti-upload" aria-hidden="true"></i> Upload</button>
+      <div class="toolbar-sep"></div>
+      <button class="toolbar-btn" id="btn-download" onclick="bulkAction('download')" style="display:none"><i class="ti ti-download" aria-hidden="true"></i> Download</button>
+      <button class="toolbar-btn" id="btn-delete" onclick="bulkAction('delete')" style="display:none; color:#a4262c"><i class="ti ti-trash" aria-hidden="true"></i> Delete</button>
+      <button class="toolbar-btn" onclick="reload()"><i class="ti ti-refresh" aria-hidden="true"></i> Refresh</button>
+      <button class="toolbar-btn" onclick="sortDocs()"><i class="ti ti-arrows-sort" aria-hidden="true"></i> Sort</button>
+      <button class="toolbar-btn" onclick="openFilterMenu()"><i class="ti ti-filter" aria-hidden="true"></i> Filter</button>
+      <div class="toolbar-search">
+        <i class="ti ti-search" aria-hidden="true"></i>
+        <input type="text" placeholder="Search documents…" id="search-input" oninput="renderDocs()" aria-label="Search documents">
+      </div>
+    </div>
+
+    <!-- DOCUMENT AREA -->
+    <div class="content-area">
+      <!-- Stats -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card"><div class="stat-label">Total Documents</div><div class="stat-value" id="st-total">0</div><div class="stat-sub">in this view</div></div>
+        <div class="stat-card"><div class="stat-label">Published</div><div class="stat-value" id="st-pub">0</div><div class="stat-sub">available</div></div>
+        <div class="stat-card"><div class="stat-label">Under Review</div><div class="stat-value" id="st-rev">0</div><div class="stat-sub">pending</div></div>
+        <div class="stat-card"><div class="stat-label">Total Size</div><div class="stat-value" id="st-size">0 MB</div><div class="stat-sub">storage used</div></div>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="filter-bar" id="filter-bar" style="display:none">
+        <span class="filter-label">Filter by:</span>
+        <span class="chip active" onclick="chipFilter('all', event)">All</span>
+        <span class="chip" onclick="chipFilter('Published', event)">Published</span>
+        <span class="chip" onclick="chipFilter('Draft', event)">Draft</span>
+        <span class="chip" onclick="chipFilter('Review', event)">Review</span>
+      </div>
+
+      <div class="content-header">
+        <div>
+          <div class="content-title" id="content-title">All Documents</div>
+          <div class="content-subtitle" id="content-subtitle">Select a division and department above to filter documents</div>
+        </div>
+        <div class="view-toggle">
+          <button class="view-btn active" id="vbtn-list" onclick="setView('list')" aria-label="List view"><i class="ti ti-list" aria-hidden="true"></i></button>
+          <button class="view-btn" id="vbtn-grid" onclick="setView('grid')" aria-label="Grid view"><i class="ti ti-layout-grid" aria-hidden="true"></i></button>
+        </div>
+      </div>
+
+      <div id="doc-list-view">
+        <table class="doc-table" id="doc-table">
+          <thead>
+            <tr>
+              <th style="width:32px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)" aria-label="Select all"></th>
+              <th onclick="sortBy('name')"><div class="th-inner">Name <i class="ti ti-arrows-sort" style="font-size:11px;opacity:.5"></i></div></th>
+              <th onclick="sortBy('division')"><div class="th-inner">Division</div></th>
+              <th onclick="sortBy('dept')"><div class="th-inner">Department</div></th>
+              <th onclick="sortBy('status')"><div class="th-inner">Status</div></th>
+              <th onclick="sortBy('date')"><div class="th-inner">Modified <i class="ti ti-arrows-sort" style="font-size:11px;opacity:.5"></i></div></th>
+              <th onclick="sortBy('size')"><div class="th-inner">Size</div></th>
+              <th style="width:110px"></th>
+            </tr>
+          </thead>
+          <tbody id="doc-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none">
+          <i class="ti ti-folder-off" aria-hidden="true"></i>
+          <h3>No documents here yet</h3>
+          <p>Upload a document or adjust your filters to see results.</p>
+        </div>
+      </div>
+
+      <div id="doc-grid-view" class="doc-grid" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<!-- UPLOAD PANEL -->
+<div class="upload-panel" id="upload-panel">
+  <div class="upload-modal">
+    <div class="modal-header">
+      <div class="modal-title">Upload documents</div>
+      <button class="modal-close" onclick="closeUpload()" aria-label="Close"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="up-division">Division</label>
+          <select class="form-select" id="up-division" onchange="onUpDivisionChange()">
+            <option value="">Select Division</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="up-dept">Department</label>
+          <select class="form-select" id="up-dept">
+            <option value="">Select Department</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="up-status">Status</label>
+          <select class="form-select" id="up-status">
+            <option value="Published">Published</option>
+            <option value="Draft">Draft</option>
+            <option value="Review">Review</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="up-title">Title (optional)</label>
+          <input class="form-input" id="up-title" type="text" placeholder="Override first file's name">
+        </div>
+      </div>
+
+      <div class="drop-zone" id="drop-zone"
+        ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)"
+        onclick="document.getElementById('file-input').click()">
+        <div><i class="ti ti-cloud-upload" aria-hidden="true"></i></div>
+        <p>Drag &amp; drop files here or <strong>browse</strong></p>
+        <small>PDF, Word, Excel, PowerPoint, Images — large files upload in chunks</small>
+        <input type="file" id="file-input" multiple style="display:none" onchange="onFileSelect(event)">
+      </div>
+
+      <div class="file-list" id="file-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeUpload()">Cancel</button>
+      <button class="btn btn-primary" id="btn-upload-submit" onclick="submitUpload()" disabled>
+        <i class="ti ti-upload" aria-hidden="true"></i> Upload files
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- App scripts: order matters (config → data layer → UI) -->
+<script src="config.js"></script>
+<script src="dataProviders.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
